@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Security Verification</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        background: #f4f6f9;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+        color: #1f2937;
+      }
+
+      .captcha-wrapper {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        width: 100%;
+        max-width: 400px;
+        overflow: hidden;
+      }
+
+      .captcha-top {
+        display: flex;
+        align-items: center;
+        padding: 0.9rem 1.1rem 0.75rem;
+        border-bottom: 1px solid #e5e7eb;
+        background: #fafafa;
+      }
+      .captcha-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+      .captcha-brand svg {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+      }
+      .captcha-brand-name {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #374151;
+        letter-spacing: 0.02em;
+      }
+      .captcha-brand-sub {
+        font-size: 0.58rem;
+        color: #9ca3af;
+        letter-spacing: 0.02em;
+        margin-top: 1px;
+      }
+
+      .captcha-body {
+        padding: 1.1rem;
+      }
+
+      .puzzle-instructions {
+        font-size: 0.8rem;
+        color: #374151;
+        font-weight: 500;
+        margin-bottom: 0.75rem;
+      }
+
+      /* Image area */
+      .puzzle-canvas-row {
+        position: relative;
+        width: 100%;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 0.85rem;
+      }
+
+      #puzzleBg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      /* Piece is absolutely positioned; top controlled by JS */
+      #puzzlePiece {
+        position: absolute;
+        left: -20%; /* overridden by JS to center over hole */
+        top: 70%; /* starts near bottom */
+      }
+
+      /* Slider — horizontal bar, dragging LEFT moves piece UP */
+      .puzzle-slider {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 42px;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        outline: none;
+        cursor: grab;
+        direction: rtl; /* thumb starts on the RIGHT (value=70 looks like "full") */
+      }
+      .puzzle-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 42px;
+        height: 40px;
+        background: #2563eb;
+        border-radius: 5px;
+        cursor: grab;
+        box-shadow: 0 1px 4px rgba(37, 99, 235, 0.3);
+        transition: background 0.12s;
+      }
+      .puzzle-slider::-webkit-slider-thumb:hover {
+        background: #1d4ed8;
+      }
+      .puzzle-slider::-moz-range-thumb {
+        width: 38px;
+        height: 38px;
+        background: #2563eb;
+        border-radius: 5px;
+        border: none;
+        cursor: grab;
+      }
+
+      .puzzle-hint {
+        font-size: 0.68rem;
+        color: #9ca3af;
+        text-align: center;
+        margin-top: 0.45rem;
+        margin-bottom: 0.85rem;
+      }
+
+      .captcha-status {
+        font-size: 0.72rem;
+        font-weight: 500;
+        min-height: 1em;
+        text-align: center;
+        margin-top: 0.55rem;
+      }
+      .captcha-status.success {
+        color: #16a34a;
+      }
+      .captcha-status.error {
+        color: #dc2626;
+      }
+
+      .captcha-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.85rem;
+        padding: 0.6rem 1rem;
+        border-top: 1px solid #e5e7eb;
+        background: #fafafa;
+      }
+      .captcha-footer a {
+        font-size: 0.6rem;
+        color: #9ca3af;
+        text-decoration: none;
+        transition: color 0.12s;
+      }
+      .captcha-footer a:hover {
+        color: #374151;
+      }
+
+      @keyframes shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20% {
+          transform: translateX(-5px);
+        }
+        40% {
+          transform: translateX(5px);
+        }
+        60% {
+          transform: translateX(-3px);
+        }
+        80% {
+          transform: translateX(3px);
+        }
+      }
+      .shake {
+        animation: shake 0.35s ease;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="captcha-wrapper">
+      <div class="captcha-top">
+        <div class="captcha-brand">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#2563eb"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path
+              d="M3 9h6M9 3v6M15 3v6M21 9h-6M3 15h6M9 15v6M15 15v6M21 15h-6"
+            />
+          </svg>
+          <div>
+            <div class="captcha-brand-name">Labyrinth</div>
+            <div class="captcha-brand-sub">Human Verification</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="captcha-body">
+        <p class="puzzle-instructions">
+          Slide the piece up to complete the image.
+        </p>
+
+        <div class="puzzle-canvas-row" id="puzzleRow">
+          <canvas id="puzzleBg"></canvas>
+          <canvas id="puzzlePiece"></canvas>
+        </div>
+
+        <!--
+      Slider range: 70 → 0
+      Starts at 70 (piece at bottom).  Drag to 0 (piece rises to top) = PASS.
+      direction:rtl makes the thumb start on the right side visually.
+    -->
+        <input
+          class="puzzle-slider"
+          id="puzzleSlider"
+          type="range"
+          min="0"
+          max="70"
+          value="70"
+        />
+        <p class="puzzle-hint">← Slide all the way left to verify</p>
+
+        <div class="captcha-status" id="puzzleStatus"></div>
+      </div>
+
+      <div class="captcha-footer">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+      </div>
+    </div>
+
+    <script>
+      /* ================================================================
+     CONFIGURATION
+
+     HOLE_X_PERCENT — horizontal centre of the hole in 1_trump.png
+                      (0 = far left, 100 = far right)
+
+     Images folder:   images/1_trump.png  — background with hole
+                      images/2_trump.png  — the piece that rises
+  ================================================================ */
+      const HOLE_X_PERCENT = 62;
+
+      const pzState = { solved: false };
+
+      function setStatus(msg, cls) {
+        const el = document.getElementById("puzzleStatus");
+        el.textContent = msg;
+        el.className = "captcha-status" + (cls ? " " + cls : "");
+      }
+
+      function triggerShake(el) {
+        el.classList.remove("shake");
+        void el.offsetWidth;
+        el.classList.add("shake");
+        el.addEventListener(
+          "animationend",
+          () => el.classList.remove("shake"),
+          { once: true },
+        );
+      }
+
+      function loadImage(src) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error("Failed to load: " + src));
+          img.src = src;
+        });
+      }
+
+      async function initPuzzle() {
+        pzState.solved = false;
+
+        const [bgImg, pieceImg] = await Promise.all([
+          loadImage("images/2_Trump.png"),
+          loadImage("images/1_Trump.png"),
+        ]);
+        
+        /* ── background ── */
+        const bg = document.getElementById("puzzleBg");
+        bg.width = bgImg.naturalWidth;
+        bg.height = bgImg.naturalHeight;
+        bg.style.height = "auto";
+        bg.getContext("2d").drawImage(bgImg, 0, 0);
+
+        /* ── piece ── */
+        const piece = document.getElementById("puzzlePiece");
+        piece.width = pieceImg.naturalWidth;
+        piece.height = pieceImg.naturalHeight;
+
+        const pieceWPct = (pieceImg.naturalWidth / bgImg.naturalWidth) * 100;
+        const pieceHPct = (pieceImg.naturalHeight / bgImg.naturalHeight) * 100;
+        piece.style.width = pieceWPct + "%";
+        piece.style.height = pieceHPct + "%";
+
+        /* Horizontal: centre the piece over the hole */
+        const leftPct = HOLE_X_PERCENT - pieceWPct / 2;
+        piece.style.left = 0 + "%";
+
+        /* Vertical: starts at 70% from top */
+        piece.style.top = "70%";
+        piece.style.transition = "";
+
+        piece.getContext("2d").drawImage(pieceImg, 0, 0);
+
+        /* blue border */
+        const pCtx = piece.getContext("2d");
+        pCtx.strokeStyle = "#2563eb";
+        pCtx.lineWidth = 2;
+        pCtx.strokeRect(
+          1,
+          1,
+          pieceImg.naturalWidth - 2,
+          pieceImg.naturalHeight - 2,
+        );
+        piece.style.boxShadow = "0 2px 8px rgba(37,99,235,.25)";
+
+        document.getElementById("puzzleSlider").value = 70;
+        setStatus("", "");
+      }
+
+      /* ── slider input ── */
+      function onSliderInput() {
+        if (pzState.solved) return;
+
+        const val = Number(
+          document.getElementById("puzzleSlider").value,
+        ); /* 70 → 0 */
+        const piece = document.getElementById("puzzlePiece");
+
+        /* Move piece: value 70 = top:70%, value 0 = top:0% */
+        piece.style.top = val + "%";
+
+        /* Glow green when close to 0 */
+        piece.style.boxShadow =
+          val <= 5
+            ? "0 2px 10px rgba(22,163,74,.5)"
+            : "0 2px 8px rgba(37,99,235,.25)";
+
+        /* Auto-pass when slider reaches 0 */
+        if (val === 0) {
+          pass();
+        } else {
+          setStatus("", "");
+        }
+      }
+
+      function pass() {
+        pzState.solved = true;
+        const piece = document.getElementById("puzzlePiece");
+        piece.style.transition = "top .15s ease";
+        piece.style.top = "0%";
+        piece.style.boxShadow = "0 0 0 2px #16a34a";
+        setStatus("✓ Verification successful", "success");
+        document.getElementById("puzzleSlider").disabled = true;
+      }
+
+      document
+        .getElementById("puzzleSlider")
+        .addEventListener("input", onSliderInput);
+
+      initPuzzle().catch(() => setStatus("Could not load images.", "error"));
+    </script>
+  </body>
+</html>
